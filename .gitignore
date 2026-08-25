@@ -1,17 +1,14 @@
-# Terraform
+cat > .gitignore << 'EOF'
+# Terraform working files (never publish these)
 .terraform/
 .terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 *.tfvars
-!terraform.tfvars.example
 tfplan
 *.tfplan
 crash.log
 
-# Lambda build
-terraform/lambda/handler.zip
-
-# Local
-evidence/
+# OS noise
 .DS_Store
+EOF
