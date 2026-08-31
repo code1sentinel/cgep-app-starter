@@ -4,15 +4,21 @@
 #   make deploy AWS_PROFILE=my-sandbox
 AWS_PROFILE ?= default
 
+# terraform/backend.tf uses a remote S3 backend (see terraform/oidc-trust/)
+# rather than local state, so init needs -backend-config. Override if your
+# state bucket has a different name (terraform/oidc-trust output: state_bucket_name).
+TF_STATE_BUCKET ?= acme-health-intake-tfstate-4e8f9036
+BACKEND_CONFIG = -backend-config="bucket=$(TF_STATE_BUCKET)" -backend-config="key=layer1/terraform.tfstate" -backend-config="region=us-east-1" -backend-config="use_lockfile=true"
+
 # If your profile is AWS SSO-based, the Terraform provider can't always
 # read the profile directly. Export credentials into env vars first.
 CREDS = eval "$$(aws configure export-credentials --profile $(AWS_PROFILE) --format env)"
 
 deploy: ## Deploy the starter (terraform init + apply)
-	@$(CREDS) && cd terraform && terraform init -input=false && terraform apply -auto-approve
+	@$(CREDS) && cd terraform && terraform init -input=false $(BACKEND_CONFIG) && terraform apply -auto-approve
 
 plan: ## Show what deploy would do
-	@$(CREDS) && cd terraform && terraform init -input=false && terraform plan
+	@$(CREDS) && cd terraform && terraform init -input=false $(BACKEND_CONFIG) && terraform plan
 
 test: ## Smoke test the deployed API
 	@$(CREDS) && cd terraform && API_URL=$$(terraform output -raw api_url) && \
@@ -23,7 +29,7 @@ test: ## Smoke test the deployed API
 		| python3 -m json.tool
 
 destroy: ## Tear it all down
-	@$(CREDS) && cd terraform && terraform destroy -auto-approve
+	@$(CREDS) && cd terraform && terraform init -input=false $(BACKEND_CONFIG) && terraform destroy -auto-approve
 
 fmt:
 	cd terraform && terraform fmt -recursive
