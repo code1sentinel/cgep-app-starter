@@ -37,3 +37,8 @@ variable "evidence_vault_bucket_arn" {
   type        = string
   description = "ARN of the Layer 1 evidence vault (terraform/evidence-vault) the pipeline signs and uploads bundles into."
 }
+
+variable "evidence_vault_kms_key_arn" {
+  type        = string
+  description = "ARN of the evidence vault's CMK -- the vault bucket enforces SSE-KMS, so PutObject needs kms:GenerateDataKey on this key too, not just S3 permissions."
+}
