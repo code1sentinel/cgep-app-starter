@@ -130,6 +130,15 @@ data "aws_iam_policy_document" "grc_gate" {
   }
 
   statement {
+    sid    = "EvidenceVaultKmsEncrypt"
+    effect = "Allow"
+    # The vault enforces SSE-KMS by default (evidence-vault/main.tf), so
+    # PutObject needs this too -- S3 permissions alone aren't enough.
+    actions   = ["kms:GenerateDataKey", "kms:Decrypt"]
+    resources = [var.evidence_vault_kms_key_arn]
+  }
+
+  statement {
     sid    = "Ec2NetworkingBroad"
     effect = "Allow"
     # VPC/subnet/route-table/IGW actions: EC2 doesn't support
@@ -154,7 +163,7 @@ data "aws_iam_policy_document" "grc_gate" {
     actions = [
       "dynamodb:CreateTable", "dynamodb:DescribeTable", "dynamodb:DeleteTable", "dynamodb:UpdateTable",
       "dynamodb:TagResource", "dynamodb:UntagResource", "dynamodb:ListTagsOfResource",
-      "dynamodb:DescribeTimeToLive", "dynamodb:DescribeContinuousBackups"
+      "dynamodb:DescribeTimeToLive", "dynamodb:DescribeContinuousBackups", "dynamodb:UpdateContinuousBackups"
     ]
     resources = ["arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-*"]
   }
@@ -168,7 +177,16 @@ data "aws_iam_policy_document" "grc_gate" {
       "s3:GetEncryptionConfiguration", "s3:PutEncryptionConfiguration",
       "s3:GetBucketPolicy", "s3:PutBucketPolicy", "s3:DeleteBucketPolicy",
       "s3:GetBucketPublicAccessBlock", "s3:PutBucketPublicAccessBlock",
-      "s3:GetBucketTagging", "s3:PutBucketTagging"
+      "s3:GetBucketTagging", "s3:PutBucketTagging", "s3:GetBucketAcl", "s3:GetBucketCORS",
+      # The AWS provider's aws_s3_bucket resource reads this whole set of
+      # sub-resource attributes on every plan/apply regardless of whether
+      # the config uses them (discovered by iterating through the actual
+      # AccessDenied errors one at a time: Acl, CORS, then Website --
+      # adding the rest of the known set here now rather than one more
+      # round-trip per remaining attribute).
+      "s3:GetBucketWebsite", "s3:GetBucketLogging", "s3:GetBucketRequestPayment",
+      "s3:GetBucketObjectLockConfiguration", "s3:GetAccelerateConfiguration",
+      "s3:GetReplicationConfiguration", "s3:GetLifecycleConfiguration"
     ]
     resources = [
       "arn:aws:s3:::${var.project_name}-*",
@@ -213,7 +231,24 @@ data "aws_iam_policy_document" "grc_gate" {
     actions = [
       "kms:CreateKey", "kms:DescribeKey", "kms:EnableKeyRotation", "kms:GetKeyRotationStatus",
       "kms:PutKeyPolicy", "kms:GetKeyPolicy", "kms:ScheduleKeyDeletion", "kms:CancelKeyDeletion",
-      "kms:DisableKey", "kms:EnableKey", "kms:TagResource", "kms:UntagResource", "kms:ListResourceTags"
+      "kms:DisableKey", "kms:EnableKey", "kms:TagResource", "kms:UntagResource", "kms:ListResourceTags",
+      # DynamoDB (and other services) create an internal grant on the CMK
+      # on the caller's behalf when wiring up SSE -- the caller needs
+      # kms:CreateGrant for that to succeed, not just the service itself.
+      "kms:CreateGrant", "kms:RevokeGrant", "kms:ListGrants",
+      # CreateAlias/UpdateAlias/DeleteAlias check permission against BOTH
+      # the alias resource (KmsAliasManagement, below) and the target key
+      # resource -- needs to be allowed here too, against the key.
+      "kms:CreateAlias", "kms:DeleteAlias", "kms:UpdateAlias",
+      # ListAliases doesn't support resource-level scoping at all (same
+      # category as cloudtrail:DescribeTrails above) -- must be granted
+      # against "*", not the alias ARN pattern.
+      "kms:ListAliases",
+      # The caller creating a KMS-encrypted Lambda needs kms:Encrypt
+      # itself, not just Decrypt/GenerateDataKey (those cover runtime
+      # use by the Lambda's own execution role, granted in
+      # iam_override.tf -- this is the CI role creating the function).
+      "kms:Encrypt"
     ]
     resources = ["*"] # key ARNs aren't known before creation; scoped by account via key policy instead
   }
@@ -224,7 +259,13 @@ data "aws_iam_policy_document" "grc_gate" {
     actions = [
       "kms:CreateAlias", "kms:DeleteAlias", "kms:ListAliases", "kms:UpdateAlias"
     ]
-    resources = ["arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/${var.project_name}-*"]
+    # NOTE: KMS alias names in this repo (kms.tf, cloudtrail.tf,
+    # evidence-vault) use "acme-health-*", not "${var.project_name}-*"
+    # ("acme-health-intake-*") like every other resource -- an
+    # inconsistency in the alias naming itself, not fixed here to avoid
+    # a destroy/recreate on already-applied aliases. Scoped to the
+    # broader-but-still-ours "acme-health-*" prefix to match reality.
+    resources = ["arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:alias/acme-health-*"]
   }
 
   statement {
@@ -234,7 +275,8 @@ data "aws_iam_policy_document" "grc_gate" {
       "lambda:CreateFunction", "lambda:GetFunction", "lambda:GetFunctionConfiguration",
       "lambda:UpdateFunctionCode", "lambda:UpdateFunctionConfiguration", "lambda:DeleteFunction",
       "lambda:AddPermission", "lambda:RemovePermission", "lambda:GetPolicy",
-      "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags", "lambda:ListVersionsByFunction"
+      "lambda:TagResource", "lambda:UntagResource", "lambda:ListTags", "lambda:ListVersionsByFunction",
+      "lambda:GetFunctionCodeSigningConfig"
     ]
     resources = ["arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-*"]
   }
@@ -244,19 +286,33 @@ data "aws_iam_policy_document" "grc_gate" {
     effect = "Allow"
     # API Gateway v2's IAM model is coarse-grained (no useful per-API
     # resource scoping for the actions Terraform needs here).
-    actions   = ["apigateway:*"]
-    resources = ["arn:aws:apigateway:${var.aws_region}::/apis*"]
+    actions = ["apigateway:*"]
+    resources = [
+      "arn:aws:apigateway:${var.aws_region}::/apis*",
+      "arn:aws:apigateway:${var.aws_region}::/tags/*", # separate ARN namespace for the tagging endpoints
+    ]
   }
 
   statement {
     sid    = "CloudTrailManagement"
     effect = "Allow"
     actions = [
-      "cloudtrail:CreateTrail", "cloudtrail:DescribeTrails", "cloudtrail:GetTrailStatus",
-      "cloudtrail:DeleteTrail", "cloudtrail:PutEventSelectors", "cloudtrail:GetEventSelectors",
+      "cloudtrail:CreateTrail",
+      "cloudtrail:DeleteTrail", "cloudtrail:PutEventSelectors",
       "cloudtrail:StartLogging", "cloudtrail:StopLogging", "cloudtrail:AddTags", "cloudtrail:ListTags"
     ]
     resources = ["arn:aws:cloudtrail:${var.aws_region}:${data.aws_caller_identity.current.account_id}:trail/${var.project_name}-*"]
+  }
+
+  statement {
+    sid    = "CloudTrailAccountWideReads"
+    effect = "Allow"
+    # DescribeTrails/GetTrailStatus/GetEventSelectors don't support
+    # resource-level scoping (same category as the EC2/KMS/API-Gateway
+    # constraints noted elsewhere) -- discovered via a live AccessDenied
+    # even though these were already listed with a scoped resource ARN.
+    actions   = ["cloudtrail:DescribeTrails", "cloudtrail:GetTrailStatus", "cloudtrail:GetEventSelectors"]
+    resources = ["*"]
   }
 
   statement {
@@ -276,7 +332,7 @@ data "aws_iam_policy_document" "grc_gate" {
     actions = [
       "sns:CreateTopic", "sns:GetTopicAttributes", "sns:SetTopicAttributes", "sns:DeleteTopic",
       "sns:Subscribe", "sns:Unsubscribe", "sns:ListSubscriptionsByTopic",
-      "sns:TagResource", "sns:UntagResource"
+      "sns:TagResource", "sns:UntagResource", "sns:ListTagsForResource", "sns:GetSubscriptionAttributes"
     ]
     resources = ["arn:aws:sns:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${var.project_name}-*"]
   }
