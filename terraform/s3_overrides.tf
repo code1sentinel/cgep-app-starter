@@ -17,12 +17,14 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
   }
 }
 
-resource "aws_s3_bucket_versioning" "uploads" {
-  bucket = aws_s3_bucket.uploads.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
+# DEMO: GAP-04 intentionally re-introduced to prove the pipeline
+# blocks a regression. Reverted in the follow-up PR.
+# resource "aws_s3_bucket_versioning" "uploads" {
+#   bucket = aws_s3_bucket.uploads.id
+#   versioning_configuration {
+#     status = "Enabled"
+#   }
+# }
 
 resource "aws_s3_bucket_public_access_block" "uploads" {
   bucket                  = aws_s3_bucket.uploads.id
