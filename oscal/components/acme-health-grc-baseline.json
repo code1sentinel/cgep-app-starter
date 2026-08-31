@@ -1,0 +1,134 @@
+{
+  "component-definition": {
+    "uuid": "964e74db-dc78-42f5-a661-de02b360302e",
+    "metadata": {
+      "title": "Acme Health Intake -- GRC Baseline",
+      "last-modified": "2026-08-31T06:30:00.000000+00:00",
+      "version": "1.0.0",
+      "oscal-version": "1.2.1",
+      "parties": [
+        {
+          "uuid": "a62d7cf9-c1ca-4588-ba49-ae9bc58ed999",
+          "type": "organization",
+          "name": "Acme Health"
+        }
+      ]
+    },
+    "components": [
+      {
+        "uuid": "0daa777c-aced-4cc7-a57c-605be766e723",
+        "type": "software",
+        "title": "acme-health-grc-baseline",
+        "description": "The GRC baseline this capstone wraps around the inherited Patient Intake API starter (GRCEngClub/cgep-app-starter): customer-managed KMS keys, S3/DynamoDB hardening overrides, least-privilege IAM, and CloudTrail-driven continuous monitoring, closing GAP-01, GAP-02, GAP-03, GAP-04, and GAP-07 from GAPS.md.",
+        "purpose": "Make the inherited patient-intake workload audit-defensible against the HIPAA Security Rule without modifying the workload's own application logic.",
+        "responsible-roles": [
+          { "role-id": "provider", "party-uuids": ["a62d7cf9-c1ca-4588-ba49-ae9bc58ed999"] }
+        ],
+        "control-implementations": [
+          {
+            "uuid": "d29f14d4-4a59-4b0f-a72d-5c6b2c997ef7",
+            "source": "https://csrc.nist.gov/pubs/sp/800/66/r2/final",
+            "description": "HIPAA Security Rule technical safeguards implemented by this baseline. NIST publishes no machine-readable OSCAL catalog for HIPAA/SP 800-66 (confirmed against usnistgov/oscal-content, which covers only CSF, SP800-171, SP800-172, SP800-218, and SP800-53) -- control-id values below are slugified 164.x citations prefixed with a letter (OSCAL tokens cannot start with a digit), not references into a resolvable catalog, and the literal citation is repeated in each requirement's hipaa-citation prop per FRAMEWORKS.md's guidance.",
+            "implemented-requirements": [
+              {
+                "uuid": "19050fef-7617-4dff-bc86-35839cd1c695",
+                "control-id": "hipaa-164-312-a-2-iv",
+                "description": "GAP-01: the uploads S3 bucket (holding PHI attachments) is encrypted with a customer-managed KMS key instead of AWS-managed SSE-S3, bringing key custody under Acme Health's control. Enforced via aws_s3_bucket_server_side_encryption_configuration.uploads (terraform/s3_overrides.tf), using the CMK defined in terraform/kms.tf (aws_kms_key.s3_data).",
+                "props": [
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "hipaa-citation", "value": "164.312(a)(2)(iv)" },
+                  { "name": "gap-id", "value": "GAP-01" },
+                  { "name": "terraform-resource", "value": "aws_s3_bucket_server_side_encryption_configuration.uploads" },
+                  { "name": "policy", "value": "policies/gap01_s3_kms_encryption.rego" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
+                    "text": "Signed pipeline bundle (terraform plan.json + policy-gate-results.json) from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                  }
+                ]
+              },
+              {
+                "uuid": "c59a95b4-098f-450f-be76-29e01d2dfcfc",
+                "control-id": "hipaa-164-312-a-2-iv",
+                "description": "GAP-02: the DynamoDB submissions table (holding PHI records) is encrypted with a customer-managed KMS key instead of the AWS-owned default. Enforced via the server_side_encryption block merged into aws_dynamodb_table.intake by terraform/dynamodb_override.tf, using the CMK defined in terraform/kms.tf (aws_kms_key.dynamodb_data).",
+                "props": [
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "hipaa-citation", "value": "164.312(a)(2)(iv)" },
+                  { "name": "gap-id", "value": "GAP-02" },
+                  { "name": "terraform-resource", "value": "aws_dynamodb_table.intake" },
+                  { "name": "policy", "value": "policies/gap02_dynamodb_kms_encryption.rego" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                  }
+                ]
+              },
+              {
+                "uuid": "b21ff31d-dd84-454d-b4e6-d6738a663d47",
+                "control-id": "hipaa-164-312-e-1",
+                "description": "GAP-03: the uploads bucket denies any S3 request made without TLS, enforcing transmission security for PHI in transit. Enforced via aws_s3_bucket_policy.uploads (terraform/s3_overrides.tf), a Deny statement conditioned on aws:SecureTransport == false.",
+                "props": [
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "hipaa-citation", "value": "164.312(e)(1)" },
+                  { "name": "gap-id", "value": "GAP-03" },
+                  { "name": "terraform-resource", "value": "aws_s3_bucket_policy.uploads" },
+                  { "name": "policy", "value": "policies/gap03_s3_secure_transport.rego" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                  }
+                ]
+              },
+              {
+                "uuid": "6c3651e3-9cb9-4a3b-89c0-9e487752bf3f",
+                "control-id": "hipaa-164-308-a-7",
+                "description": "GAP-04: versioning is enabled on the uploads bucket, so an overwritten or deleted PHI attachment remains recoverable -- part of Acme Health's contingency plan for data backup. Enforced via aws_s3_bucket_versioning.uploads (terraform/s3_overrides.tf).",
+                "props": [
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "hipaa-citation", "value": "164.308(a)(7)" },
+                  { "name": "gap-id", "value": "GAP-04" },
+                  { "name": "terraform-resource", "value": "aws_s3_bucket_versioning.uploads" },
+                  { "name": "policy", "value": "policies/gap04_s3_versioning.rego" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                  }
+                ]
+              },
+              {
+                "uuid": "176d0dfa-c0a6-4756-b06b-9f81f5ba9b02",
+                "control-id": "hipaa-164-312-a-1",
+                "description": "GAP-07: the Lambda handler's inline IAM policy is scoped to the exact three actions the handler code calls (dynamodb:PutItem, s3:PutObject under uploads/*, and the KMS actions needed to write through the CMKs above), replacing the starter's dynamodb:*/s3:* wildcard grant. Enforced via the policy merged into aws_iam_role_policy.lambda_inline by terraform/iam_override.tf.",
+                "props": [
+                  { "name": "implementation-status", "value": "implemented" },
+                  { "name": "hipaa-citation", "value": "164.312(a)(1)" },
+                  { "name": "gap-id", "value": "GAP-07" },
+                  { "name": "terraform-resource", "value": "aws_iam_role_policy.lambda_inline" },
+                  { "name": "policy", "value": "policies/gap07_iam_least_privilege.rego" }
+                ],
+                "links": [
+                  {
+                    "rel": "evidence",
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

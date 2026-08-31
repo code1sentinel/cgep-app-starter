@@ -15,5 +15,9 @@ terraform/lambda/handler.zip
 terraform/plan.json
 policy-gate-results.json
 
+# Trestle authoring workspace (local sandbox only; finished, validated
+# JSON gets copied into oscal/ and committed from there)
+.trestle-work/
+
 # OS noise
 .DS_Store
