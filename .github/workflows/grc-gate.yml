@@ -1,0 +1,179 @@
+name: grc-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # AWS OIDC + Cosign keyless signing
+  contents: read
+  pull-requests: write
+
+env:
+  AWS_REGION: us-east-1
+  TF_WORKING_DIR: terraform
+
+jobs:
+  grc-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0 # full history, so Gitleaks scans past commits too
+
+      # --- Plan -----------------------------------------------------
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: Terraform init + validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=layer1/terraform.tfstate" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="use_lockfile=true"
+          terraform validate
+
+      - name: Plan
+        id: plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan -out=tfplan -input=false -no-color | tee plan.txt
+          terraform show -json tfplan > plan.json
+
+      # --- Policy Check ----------------------------------------------
+
+      - name: Install OPA
+        uses: open-policy-agent/setup-opa@v2.4.0
+        with:
+          version: 1.20.1
+
+      - name: OPA unit tests
+        id: opa_test
+        continue-on-error: true
+        run: opa test -v policies/
+
+      - name: Install Conftest
+        run: |
+          curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.69.0/conftest_0.69.0_Linux_x86_64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin conftest
+
+      - name: Policy Check (Conftest gate)
+        id: policy_check
+        continue-on-error: true
+        run: bash scripts/policy-gate.sh --workspace "${{ env.TF_WORKING_DIR }}"
+
+      - name: Install Checkov
+        run: pip install checkov
+
+      - name: Checkov scan
+        id: checkov
+        continue-on-error: true
+        run: checkov -d "${{ env.TF_WORKING_DIR }}" --compact --quiet
+
+      - name: Gitleaks scan
+        id: gitleaks
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Apply (merge to main only, and only if every gate above passed in THIS run) ---
+
+      - name: Apply
+        id: apply
+        if: >
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.policy_check.outcome == 'success' &&
+          steps.checkov.outcome == 'success' &&
+          steps.gitleaks.outcome == 'success'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan
+
+      # --- Sign + Upload (same condition as Apply) --------------------
+
+      - name: Install Cosign
+        if: steps.apply.outcome == 'success'
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Bundle + sign + upload to vault
+        id: sign
+        if: steps.apply.outcome == 'success'
+        env:
+          VAULT: ${{ vars.EVIDENCE_VAULT }}
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          cp "${{ env.TF_WORKING_DIR }}/plan.json" evidence/plan.json
+          cp "${{ env.TF_WORKING_DIR }}/plan.txt"  evidence/plan.txt
+          cp policy-gate-results.json evidence/policy-gate-results.json
+
+          BUNDLE="evidence-${RUN_ID}-${SHA}.tar.gz"
+          ( cd evidence && tar czf "../${BUNDLE}" . )
+          sha256sum "${BUNDLE}" | awk '{print $1}' > "${BUNDLE}.sha256"
+
+          cosign sign-blob --yes --bundle "${BUNDLE}.sig.bundle" "${BUNDLE}"
+
+          KEY_PREFIX="runs/${RUN_ID}"
+          aws s3 cp "${BUNDLE}"            "s3://${VAULT}/${KEY_PREFIX}/${BUNDLE}"
+          aws s3 cp "${BUNDLE}.sha256"     "s3://${VAULT}/${KEY_PREFIX}/${BUNDLE}.sha256"
+          aws s3 cp "${BUNDLE}.sig.bundle" "s3://${VAULT}/${KEY_PREFIX}/${BUNDLE}.sig.bundle"
+
+          VERSION_ID=$(aws s3api head-object --bucket "${VAULT}" --key "${KEY_PREFIX}/${BUNDLE}" --query VersionId --output text)
+          cat > receipt.json <<EOF
+          {
+            "run_id":"${RUN_ID}",
+            "vault":"${VAULT}",
+            "bundle_key":"${KEY_PREFIX}/${BUNDLE}",
+            "version_id":"${VERSION_ID}",
+            "sha256":"$(cat ${BUNDLE}.sha256)",
+            "commit":"${SHA}"
+          }
+          EOF
+          aws s3 cp receipt.json "s3://${VAULT}/${KEY_PREFIX}/receipt.json"
+          cp receipt.json evidence/receipt.json
+
+      # --- Always: keep evidence visible on the run itself -----------
+
+      - name: Upload evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: grc-evidence-${{ github.run_id }}
+          path: |
+            ${{ env.TF_WORKING_DIR }}/plan.json
+            ${{ env.TF_WORKING_DIR }}/plan.txt
+            policy-gate-results.json
+            evidence/
+          retention-days: 90
+          if-no-files-found: ignore
+
+      # --- Enforce gate: this is what actually makes the check red/green ---
+
+      - name: Enforce gate
+        if: always()
+        run: |
+          FAIL=0
+          [[ "${{ steps.opa_test.outcome }}" == "success" ]]    || { echo "opa test failed"; FAIL=1; }
+          [[ "${{ steps.policy_check.outcome }}" == "success" ]] || { echo "policy check (conftest) failed"; FAIL=1; }
+          [[ "${{ steps.checkov.outcome }}" == "success" ]]      || { echo "checkov failed"; FAIL=1; }
+          [[ "${{ steps.gitleaks.outcome }}" == "success" ]]     || { echo "gitleaks failed"; FAIL=1; }
+          exit $FAIL

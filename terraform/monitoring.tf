@@ -16,6 +16,10 @@ variable "alert_email" {
 
 resource "aws_sns_topic" "compliance_alerts" {
   name = "${local.name_prefix}-compliance-alerts-${local.suffix}"
+  # AWS-managed key: this topic only carries alert metadata (which
+  # control fired, on which resource), not PHI, so a dedicated CMK
+  # isn't warranted the way it is for the uploads bucket / table.
+  kms_master_key_id = "alias/aws/sns"
 }
 
 resource "aws_sns_topic_subscription" "compliance_alerts_email" {
