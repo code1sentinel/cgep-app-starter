@@ -84,7 +84,19 @@ resource "aws_iam_role" "grc_gate" {
         StringEquals = { "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com" }
         # Scoped to this one repo only. Widening this to repo:*:* trusts
         # every public GitHub repo to assume this role -- don't.
-        StringLike = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:*" }
+        #
+        # GitHub's OIDC token embeds immutable numeric org/repo IDs in
+        # the sub claim -- repo:OWNER@ORG_ID/REPO@REPO_ID:event -- not
+        # the plain repo:OWNER/REPO:* format older docs show. Pinning
+        # to the numeric IDs (not just the names) is actually stronger:
+        # trust survives a rename and doesn't silently re-attach if the
+        # repo were ever deleted and a new one recreated under the same
+        # name. Discovered via a debug step dumping the real token
+        # (github.com/code1sentinel/cgep-app-starter, org id 228478940,
+        # repo id 1345892945) after the plain-name condition failed
+        # every retry with "Not authorized to perform
+        # sts:AssumeRoleWithWebIdentity".
+        StringLike = { "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}@${var.github_org_id}/${var.github_repo}@${var.github_repo_id}:*" }
       }
     }]
   })

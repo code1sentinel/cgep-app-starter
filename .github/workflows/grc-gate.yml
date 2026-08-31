@@ -26,17 +26,6 @@ jobs:
 
       # --- Plan -----------------------------------------------------
 
-      - name: Debug OIDC token claims
-        uses: actions/github-script@v9.0.0
-        with:
-          script: |
-            const token = await core.getIDToken('sts.amazonaws.com');
-            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-            core.info(`sub: ${payload.sub}`);
-            core.info(`aud: ${payload.aud}`);
-            core.info(`iss: ${payload.iss}`);
-            core.info(`repository: ${payload.repository}`);
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6.2.3
         with:
