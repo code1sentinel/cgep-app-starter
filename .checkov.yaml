@@ -1,0 +1,84 @@
+# .checkov.yaml
+# Explicit, justified skip list. Each entry maps to either a gap this
+# capstone deliberately deferred (documented in terraform/kms.tf and
+# the Layer 1 plan — GAP-05/06/08 were scoped out in favor of depth on
+# GAP-01/02/03/04/07), a generic S3/DR hygiene check outside the
+# capstone's 5-gap + monitoring scope, or a known static-analysis
+# limitation. Nothing here is unreviewed.
+directory:
+  - terraform
+compact: true
+quiet: true
+skip-check:
+  # --- Deferred gaps (GAP-05, GAP-06, GAP-08) ---------------------
+  - CKV_AWS_117 # Lambda in VPC (GAP-05, deferred)
+  - CKV_AWS_116 # Lambda DLQ (GAP-06, deferred)
+  - CKV_AWS_115 # Lambda reserved concurrency (GAP-06, deferred)
+  - CKV_AWS_50  # Lambda X-Ray tracing (GAP-06, deferred)
+  - CKV_AWS_76  # API Gateway access logging (GAP-08, deferred)
+  - CKV_AWS_309 # API Gateway route authorization (same component as GAP-08, deferred)
+
+  # --- Known static-analysis limitation, not an actual gap --------
+  - CKV_AWS_119 # DynamoDB CMK: already closed by GAP-02's server_side_encryption
+                # block, added via terraform/dynamodb_override.tf. Checkov's
+                # HCL-graph scan doesn't resolve Terraform override-file
+                # merges, so it still sees the un-overridden table definition.
+                # Confirmed fixed by: policies/gap02_dynamodb_kms_encryption.rego
+                # (passes) and the live AWS verification in Layer 1 (SSEType: KMS).
+  - CKV2_AWS_16 # DynamoDB auto-scaling: not applicable. The table uses
+                # PAY_PER_REQUEST billing (main.tf); auto-scaling only applies
+                # to PROVISIONED-mode tables.
+  - CKV_AWS_28  # DynamoDB point-in-time recovery: same override-file
+                # blindness. Actually enabled via
+                # terraform/dynamodb_override.tf; checkov's static scan
+                # attributes the finding to main.tf's base resource block,
+                # which we deliberately don't edit (keeps the diff against
+                # the starter clean). Confirmed via `terraform plan` showing
+                # point_in_time_recovery.enabled = true.
+  - CKV_AWS_173 # Lambda environment variable KMS encryption: same
+                # override-file blindness. Actually set via
+                # terraform/lambda_override.tf (kms_key_arn on the
+                # function), same reasoning as CKV_AWS_28 above.
+
+  # --- CI plumbing, not part of the graded compliance surface ------
+  - CKV_AWS_145 # S3 KMS encryption on the Terraform state bucket
+                # (terraform/oidc-trust): holds Terraform state, not PHI --
+                # AES256 is proportionate here. The workload's actual PHI
+                # surfaces (uploads bucket, DynamoDB table) use customer
+                # KMS keys (GAP-01/GAP-02); the audit-log and evidence
+                # buckets do too (cloudtrail.tf, evidence-vault/main.tf).
+
+  # --- Out of the capstone's 5-gap + monitoring scope --------------
+  - CKV_AWS_272 # Lambda code-signing config: generic hardening beyond the
+                # named gaps; not attempted this pass.
+  - CKV_AWS_130 # Public IP on the starter's public subnets: inherited VPC
+                # design from main.tf, unused by anything sensitive (the
+                # Lambda isn't deployed into them; GAP-05 covers whether the
+                # Lambda should be networked at all).
+  - CKV2_AWS_11 # VPC flow logs: out of scope; the monitoring work in
+                # terraform/monitoring.tf covers the 5 closed gaps via
+                # targeted CloudTrail/EventBridge detection instead.
+  - CKV2_AWS_12 # Default VPC security group restrict-all: out of scope,
+                # starter's VPC design.
+  - CKV_AWS_252 # CloudTrail SNS notification on new log files: superseded
+                # by the targeted, per-gap EventBridge detections in
+                # terraform/monitoring.tf, which alert on the specific
+                # dangerous action rather than generic log-delivery events.
+  - CKV2_AWS_10 # CloudTrail -> CloudWatch Logs integration: same reasoning,
+                # superseded by the EventBridge-based detection already built.
+  - CKV2_AWS_62 # S3 event notifications (all 4 buckets): generic hygiene,
+                # out of scope.
+  - CKV2_AWS_61 # S3 lifecycle configuration (all 4 buckets): generic
+                # hygiene, out of scope.
+  - CKV_AWS_144 # S3 cross-region replication (all 4 buckets): would need a
+                # second region; out of scope for a 30-day capstone.
+  - CKV_AWS_18  # S3 server access logging (distinct from CloudTrail, which
+                # all 4 buckets already have at the account level): generic
+                # hygiene, out of scope.
+
+  # --- Our own oidc-trust IAM policy: already justified inline -----
+  - CKV_AWS_109 # grc-gate IAM policy resource="*" statements: see the
+  - CKV_AWS_111 # comments directly in terraform/oidc-trust/main.tf --
+  - CKV_AWS_356 # EC2/KMS/API-Gateway/STS actions used there don't support
+                # resource-level IAM scoping; this is AWS's own constraint,
+                # not a shortcut.

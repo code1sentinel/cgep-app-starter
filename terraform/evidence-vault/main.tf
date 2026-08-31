@@ -33,6 +33,19 @@ locals {
 resource "aws_kms_key" "vault" {
   description         = "CMK for the GRC evidence vault (signed pipeline bundles)."
   enable_key_rotation = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AccountRootFullAccess"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      }
+    ]
+  })
 }
 
 resource "aws_kms_alias" "vault" {
