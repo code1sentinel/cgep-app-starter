@@ -1,0 +1,9 @@
+=== component-definition ===
+VALID: Model C:\Users\Andre\Documents\GitHub\cgep-app-starter\.trestle-work\component-definitions\acme-health-grc-baseline\component-definition.json passed the Validator to confirm the model passes all registered validation tests.
+
+=== profile ===
+VALID: Model C:\Users\Andre\Documents\GitHub\cgep-app-starter\.trestle-work\profiles\hipaa-minimum\profile.json passed the Validator to confirm the model passes all registered validation tests.
+
+=== profile-resolve attempt (documented limitation) ===
+Validating local file access: C:\Users\Andre\Documents\GitHub\cgep-app-starter\.trestle-work\profiles\hipaa-minimum\profile.json
+trestle.core.commands.author.prof:95 ERROR: Generation of the resolved profile catalog failed: data does not contain a root key

@@ -1,0 +1,27 @@
+{
+  "profile": {
+    "uuid": "a1f8028e-ec5e-4fb1-ba4e-b2a79f13bbfa",
+    "metadata": {
+      "title": "CGE-P capstone minimum control selection -- HIPAA Security Rule",
+      "last-modified": "2026-08-31T06:30:00.000000+00:00",
+      "version": "1.0.0",
+      "oscal-version": "1.2.1"
+    },
+    "imports": [
+      {
+        "href": "https://csrc.nist.gov/pubs/sp/800/66/r2/final",
+        "include-controls": [
+          {
+            "with-ids": [
+              "hipaa-164-312-a-2-iv",
+              "hipaa-164-312-e-1",
+              "hipaa-164-308-a-7",
+              "hipaa-164-312-a-1"
+            ]
+          }
+        ]
+      }
+    ],
+    "merge": { "as-is": true }
+  }
+}
