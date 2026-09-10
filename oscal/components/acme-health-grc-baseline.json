@@ -3,8 +3,8 @@
     "uuid": "964e74db-dc78-42f5-a661-de02b360302e",
     "metadata": {
       "title": "Acme Health Intake -- GRC Baseline",
-      "last-modified": "2026-08-31T06:30:00.000000+00:00",
-      "version": "1.0.0",
+      "last-modified": "2026-09-10T09:25:00.000000+00:00",
+      "version": "1.0.1",
       "oscal-version": "1.2.1",
       "parties": [
         {
@@ -44,8 +44,8 @@
                 "links": [
                   {
                     "rel": "evidence",
-                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
-                    "text": "Signed pipeline bundle (terraform plan.json + policy-gate-results.json) from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/34460022480/evidence-34460022480-92adbf817add71c27face3695809454ae8be3289.tar.gz",
+                    "text": "Signed pipeline bundle (terraform plan.json + policy-gate-results.json) from the run that applied the reviewed baseline (commit 92adbf8). Verify with scripts/verify-evidence.sh 34460022480."
                   }
                 ]
               },
@@ -63,8 +63,8 @@
                 "links": [
                   {
                     "rel": "evidence",
-                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
-                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/34460022480/evidence-34460022480-92adbf817add71c27face3695809454ae8be3289.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied the reviewed baseline (commit 92adbf8). Verify with scripts/verify-evidence.sh 34460022480."
                   }
                 ]
               },
@@ -82,8 +82,8 @@
                 "links": [
                   {
                     "rel": "evidence",
-                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
-                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/34460022480/evidence-34460022480-92adbf817add71c27face3695809454ae8be3289.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied the reviewed baseline (commit 92adbf8). Verify with scripts/verify-evidence.sh 34460022480."
                   }
                 ]
               },
@@ -101,8 +101,8 @@
                 "links": [
                   {
                     "rel": "evidence",
-                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
-                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/34460022480/evidence-34460022480-92adbf817add71c27face3695809454ae8be3289.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied the reviewed baseline (commit 92adbf8). Verify with scripts/verify-evidence.sh 34460022480."
                   }
                 ]
               },
@@ -120,8 +120,8 @@
                 "links": [
                   {
                     "rel": "evidence",
-                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/33357334981/evidence-33357334981-433c4aed1f912c2e5b3ab1b0f41412916d1884d7.tar.gz",
-                    "text": "Signed pipeline bundle from the run that applied this configuration. Verify with scripts/verify-evidence.sh 33357334981."
+                    "href": "s3://acme-health-intake-grc-evidence-vault-2f2d7f0e/runs/34460022480/evidence-34460022480-92adbf817add71c27face3695809454ae8be3289.tar.gz",
+                    "text": "Signed pipeline bundle from the run that applied the reviewed baseline (commit 92adbf8). Verify with scripts/verify-evidence.sh 34460022480."
                   }
                 ]
               }

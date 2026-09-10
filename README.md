@@ -36,7 +36,7 @@ bash scripts/verify-evidence.sh <run_id>
 # Expect: CHAIN INTACT
 ```
 
-The OSCAL component (`oscal/components/acme-health-grc-baseline.json`) links each control claim to a real bundle from run `33357334981` — start there and follow the `links[rel=evidence]` hrefs. That run is a representative, fully-verified example, not a one-time snapshot: every merge to `main` produces a fresh signed bundle the same way, so `verify-evidence.sh` works against any run ID in the vault, not just this one.
+The OSCAL component (`oscal/components/acme-health-grc-baseline.json`) links each control claim to a real bundle from run `34460022480` — the `grc-gate` job that applied the current `main` baseline (commit `92adbf8`). Start there and follow the `links[rel=evidence]` hrefs. That run is a representative, fully-verified example, not a one-time snapshot: every merge to `main` produces a fresh signed bundle the same way, so `verify-evidence.sh` works against any run ID in the vault, not just this one.
 
 ### 3. Run the policy suite locally
 
