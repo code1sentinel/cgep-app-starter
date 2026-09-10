@@ -21,6 +21,6 @@ variable "lock_mode" {
 
 variable "retention_days" {
   type        = number
-  description = "Default retention applied to every uploaded object. Kept short (1 day) by default so COMPLIANCE-mode test uploads during pipeline development expire quickly; raise it deliberately for real capstone evidence."
-  default     = 1
+  description = "Default retention applied to every uploaded object. Was 1 day during pipeline development (so COMPLIANCE-mode test uploads expired quickly); raised to 6 years (2190 days) for real evidence, matching HIPAA's own documentation-retention requirement (45 CFR 164.316(b)(2)(i)) rather than an arbitrary 'long enough' number."
+  default     = 2190
 }
