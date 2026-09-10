@@ -19,7 +19,7 @@ CGE-P capstone submission. Primary framework: **HIPAA Security Rule** (see [WRIT
 
 ### 1. The gate is real, not cosmetic
 
-The pipeline (`.github/workflows/grc-gate.yml`) runs as three staged jobs — **lint** (`terraform fmt -check`, `tflint` on all three roots, `opa test`) → **validate** (`terraform validate` per root) → **security-and-deploy** (plan → `terraform test` + detection-pattern tests → conftest gate → checkov → gitleaks → gated apply → cosign sign → vault upload). The later stages don't start until lint and validate pass, and `Apply` only runs on a push to `main` where every scanner in the run succeeded.
+The pipeline (`.github/workflows/grc-gate.yml`) runs as three staged jobs — **lint** (`terraform fmt -check`, `tflint` on all three roots, `opa test`) → **validate** (`terraform validate` per root) → **grc-gate** (plan → `terraform test` + detection-pattern tests → conftest gate → checkov → gitleaks → gated apply → cosign sign → vault upload). The `grc-gate` job doesn't start until lint and validate pass, and `Apply` only runs on a push to `main` where every scanner in the run succeeded.
 
 Repo history has both halves of the two-PR requirement:
 - **Green**: PR #1, #2, #4 — merged, full pipeline (Plan → Policy Check → Apply → Sign → Upload) succeeded each time.

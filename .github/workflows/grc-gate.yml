@@ -16,10 +16,11 @@ env:
   AWS_REGION: us-east-1
   TF_WORKING_DIR: terraform
 
-# Staged pipeline: lint -> validate -> (security + deploy).
-# `security-and-deploy` only starts once both lint and validate pass, so a
-# formatting slip or an invalid module fails fast and cheap, before any AWS
-# credentials are assumed or a plan is computed.
+# Staged pipeline: lint -> validate -> grc-gate (security scan + gated deploy).
+# `grc-gate` only starts once both lint and validate pass, so a formatting
+# slip or an invalid module fails fast and cheap, before any AWS credentials
+# are assumed or a plan is computed. `grc-gate` is the required status check
+# on main; lint and validate can be added as required checks too.
 jobs:
   # --- Stage 1: lint (no cloud credentials, no network state) --------
   lint:
@@ -79,7 +80,11 @@ jobs:
           done
 
   # --- Stage 3: security scanning + gated deploy -------------------
-  security-and-deploy:
+  # Keeps the job name `grc-gate` -- that is the context `main`'s branch
+  # protection requires, and the deploy/sign/vault-upload flow that has
+  # to stay one job (the saved tfplan is applied in the same job it was
+  # produced in). lint + validate run ahead of it as their own stages.
+  grc-gate:
     needs: [lint, validate]
     runs-on: ubuntu-latest
     steps:
