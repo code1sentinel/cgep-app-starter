@@ -19,6 +19,8 @@ CGE-P capstone submission. Primary framework: **HIPAA Security Rule** (see [WRIT
 
 ### 1. The gate is real, not cosmetic
 
+The pipeline (`.github/workflows/grc-gate.yml`) runs as three staged jobs — **lint** (`terraform fmt -check`, `tflint` on all three roots, `opa test`) → **validate** (`terraform validate` per root) → **grc-gate** (plan → `terraform test` + detection-pattern tests → conftest gate → checkov → gitleaks → gated apply → cosign sign → vault upload). The `grc-gate` job doesn't start until lint and validate pass, and `Apply` only runs on a push to `main` where every scanner in the run succeeded.
+
 Repo history has both halves of the two-PR requirement:
 - **Green**: PR #1, #2, #4 — merged, full pipeline (Plan → Policy Check → Apply → Sign → Upload) succeeded each time.
 - **Red**: PR #3 — deliberately reverted GAP-04 (S3 versioning). Both `policies/gap04_s3_versioning.rego` and `checkov` caught it; `gh pr merge` was refused by branch protection. Closed, not merged — see the PR for the full trace.
@@ -42,6 +44,26 @@ The OSCAL component (`oscal/components/acme-health-grc-baseline.json`) links eac
 opa test -v policies/                              # unit tests, no AWS needed
 bash scripts/policy-gate.sh --workspace terraform   # live gate against a real plan (needs a saved tfplan + AWS creds)
 ```
+
+### 3b. Lint + validate (the CI `lint` and `validate` stages, no AWS needed)
+
+```bash
+terraform fmt -check -recursive
+tflint --init && for d in terraform terraform/evidence-vault terraform/oidc-trust; do \
+  tflint --chdir="$d" --config="$PWD/.tflint.hcl" --minimum-failure-severity=error; done
+for d in terraform terraform/evidence-vault terraform/oidc-trust; do \
+  terraform -chdir="$d" init -backend=false && terraform -chdir="$d" validate; done
+```
+
+### 3c. Run the test suites (IaC assertions + detection-logic pattern matching)
+
+```bash
+cd terraform && terraform test                             # plan-only, no resources created; needs AWS creds
+pip install pytest boto3
+pytest scripts/tests/test_detection_patterns.py -v          # needs AWS creds + a deployed terraform/ workspace
+```
+
+All of the above run in CI on every push/PR; the test suites block `Apply` on failure, same as checkov/gitleaks/conftest.
 
 ### 4. Validate the OSCAL
 

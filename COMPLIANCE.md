@@ -28,9 +28,16 @@ Per GAPS.md's own guidance ("closing five gaps with depth beats eight done thinl
 - **Evidence vault** (`terraform/evidence-vault/`) — S3 with Object Lock (`COMPLIANCE` mode), versioned, KMS-encrypted. Where every signed pipeline bundle lands.
 - **OIDC trust + remote state** (`terraform/oidc-trust/`) — the CI pipeline's AWS access (no static keys) and the shared Terraform state that makes an `Apply` step in CI possible at all.
 
+## Automated test coverage
+
+Two test suites run in CI on every push/PR (`.github/workflows/grc-gate.yml`), blocking `Apply` on failure like every other gate:
+
+- **`terraform/tests/gap_fixes.tftest.hcl`** — native `terraform test`, one `run` block per GAP-01/02/03/04/07, asserting the real plan-time configuration (SSE algorithm and CMK identity, versioning status, the SecureTransport-deny statement, no wildcard IAM actions). Plan-only (`command = plan`) with `override_resource` blocks giving the cross-referenced KMS/S3/DynamoDB ARNs known values during planning — deliberately not `command = apply`, since minting a real KMS CMK just to run a test bills a full month the instant it's created, even if destroyed a second later.
+- **`scripts/tests/test_detection_patterns.py`** — pytest, positive and negative cases for all 5 `monitoring.tf` EventBridge rules. Rather than reimplementing EventBridge's match semantics, it calls the real `events:TestEventPattern` API against each rule's actual deployed `event_pattern` (read live from Terraform state, so the fixtures can't drift from what's really running) and realistic CloudTrail event fixtures — including the boundary cases that matter most: the same dangerous call on a *different* real resource (proves the rule is scoped, not just present), and for GAP-04, the same event with `Status: Enabled` instead of `Suspended` (proves the rule doesn't alert on the opposite, safe transition).
+
 ## Verifying any row yourself
 
 1. **Terraform claim** — read the cited resource in the `.tf` file; `terraform plan` against the real workspace shows it.
 2. **Rego claim** — `opa test policies/` (unit tests) or `bash scripts/policy-gate.sh --workspace terraform` (live gate).
-3. **Monitoring claim** — the rule exists in a deployed `terraform apply`; live-fire proof is in the Layer 1 commit message (`bacb0df`) — a real CLI-triggered drift was detected, alerted, and self-healed.
+3. **Monitoring claim** — the rule exists in a deployed `terraform apply`; live-fire proof is in the Layer 1 commit message (`bacb0df`) — a real CLI-triggered drift was detected, alerted, and self-healed. `pytest scripts/tests/test_detection_patterns.py -v` gives repeatable, automated proof of the same scoping without needing to trigger a real API call.
 4. **OSCAL claim** — `oscal/components/acme-health-grc-baseline.json`, validated per `oscal/trestle-validate.txt`, each `links[rel=evidence]` resolving to a real signed bundle: `bash scripts/verify-evidence.sh <run_id>` should print `CHAIN INTACT`.

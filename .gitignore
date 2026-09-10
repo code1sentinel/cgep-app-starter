@@ -18,5 +18,10 @@ policy-gate-results.json
 # JSON gets copied into oscal/ and committed from there)
 .trestle-work/
 
+# Python test run artifacts (scripts/tests/)
+.pytest_cache/
+__pycache__/
+*.pyc
+
 # OS noise
 .DS_Store

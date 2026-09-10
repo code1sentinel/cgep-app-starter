@@ -327,6 +327,20 @@ data "aws_iam_policy_document" "grc_gate" {
   }
 
   statement {
+    sid    = "EventBridgeTestPattern"
+    effect = "Allow"
+    # events:TestEventPattern is stateless (matches a pattern against an
+    # event you pass in; doesn't read or touch any actual rule) and
+    # doesn't support resource-level scoping, so it needs Resource: "*"
+    # -- same category as CloudTrailAccountWideReads above. Used by
+    # scripts/tests/test_detection_patterns.py in CI to verify the
+    # monitoring.tf rules' event_pattern match real CloudTrail event
+    # shapes, positive and negative, against the AWS's own matcher.
+    actions   = ["events:TestEventPattern"]
+    resources = ["*"]
+  }
+
+  statement {
     sid    = "SnsTopic"
     effect = "Allow"
     actions = [
