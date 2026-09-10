@@ -10,8 +10,13 @@
 
 variable "alert_email" {
   type        = string
-  description = "Address that receives compliance drift alerts from monitoring.tf."
-  default     = "code1sentinel@gmail.com"
+  description = "Address subscribed to the compliance-drift SNS topic. The default is a non-routable placeholder in the RFC 2606 reserved domain acme-health.example; pass -var 'alert_email=<team-alias>' (or TF_VAR_alert_email) at deploy time to route real alerts to a monitored inbox."
+  default     = "grc-drift-alerts@acme-health.example"
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alert_email))
+    error_message = "alert_email must be a single valid email address."
+  }
 }
 
 resource "aws_sns_topic" "compliance_alerts" {

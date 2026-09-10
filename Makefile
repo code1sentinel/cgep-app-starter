@@ -1,4 +1,6 @@
-.PHONY: deploy plan test destroy fmt creds
+.PHONY: deploy plan test destroy fmt lint validate creds
+
+TF_ROOTS = terraform terraform/evidence-vault terraform/oidc-trust
 
 # Set AWS_PROFILE in your shell before running, or pass on the command line:
 #   make deploy AWS_PROFILE=my-sandbox
@@ -31,8 +33,24 @@ test: ## Smoke test the deployed API
 destroy: ## Tear it all down
 	@$(CREDS) && cd terraform && terraform init -input=false $(BACKEND_CONFIG) && terraform destroy -auto-approve
 
-fmt:
-	cd terraform && terraform fmt -recursive
+fmt: ## Rewrite all .tf/.tftest.hcl to canonical format
+	terraform fmt -recursive
+
+lint: ## CI 'lint' stage: fmt check + tflint (all roots) + Rego unit tests
+	terraform fmt -check -recursive -diff
+	tflint --init
+	@for d in $(TF_ROOTS); do \
+		echo "tflint $$d" && \
+		tflint --chdir="$$d" --config="$$(pwd)/.tflint.hcl" --minimum-failure-severity=error || exit 1; \
+	done
+	opa test -v policies/
+
+validate: ## CI 'validate' stage: terraform validate per root (no AWS creds)
+	@for d in $(TF_ROOTS); do \
+		echo "validate $$d" && \
+		terraform -chdir="$$d" init -backend=false -input=false >/dev/null && \
+		terraform -chdir="$$d" validate || exit 1; \
+	done
 
 creds: ## Print the active AWS identity (sanity check)
 	@$(CREDS) && aws sts get-caller-identity

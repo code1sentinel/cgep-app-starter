@@ -16,8 +16,71 @@ env:
   AWS_REGION: us-east-1
   TF_WORKING_DIR: terraform
 
+# Staged pipeline: lint -> validate -> (security + deploy).
+# `security-and-deploy` only starts once both lint and validate pass, so a
+# formatting slip or an invalid module fails fast and cheap, before any AWS
+# credentials are assumed or a plan is computed.
 jobs:
-  grc-gate:
+  # --- Stage 1: lint (no cloud credentials, no network state) --------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: terraform fmt (check, no diffs allowed)
+        run: terraform fmt -check -recursive -diff
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6.3.1
+        with:
+          tflint_version: v0.64.0
+
+      - name: TFLint (all three roots)
+        run: |
+          for d in terraform terraform/evidence-vault terraform/oidc-trust; do
+            echo "::group::tflint $d"
+            tflint --chdir="$d" --config="$PWD/.tflint.hcl" --minimum-failure-severity=error
+            echo "::endgroup::"
+          done
+
+      - name: Install OPA
+        uses: open-policy-agent/setup-opa@v2.4.0
+        with:
+          version: 1.20.1
+
+      - name: OPA unit tests (Rego policy suite)
+        run: opa test -v policies/
+
+  # --- Stage 2: validate (each module parses + type-checks) ---------
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+
+      - name: terraform validate (all three roots)
+        run: |
+          for d in terraform terraform/evidence-vault terraform/oidc-trust; do
+            echo "::group::validate $d"
+            terraform -chdir="$d" init -backend=false -input=false
+            terraform -chdir="$d" validate
+            echo "::endgroup::"
+          done
+
+  # --- Stage 3: security scanning + gated deploy -------------------
+  security-and-deploy:
+    needs: [lint, validate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -38,7 +101,7 @@ jobs:
           terraform_version: 1.15.8
           terraform_wrapper: false
 
-      - name: Terraform init + validate
+      - name: Terraform init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform init -input=false \
@@ -46,7 +109,6 @@ jobs:
             -backend-config="key=layer1/terraform.tfstate" \
             -backend-config="region=${{ env.AWS_REGION }}" \
             -backend-config="use_lockfile=true"
-          terraform validate
 
       - name: Plan
         id: plan
@@ -77,16 +139,6 @@ jobs:
         run: pytest scripts/tests/test_detection_patterns.py -v
 
       # --- Policy Check ----------------------------------------------
-
-      - name: Install OPA
-        uses: open-policy-agent/setup-opa@v2.4.0
-        with:
-          version: 1.20.1
-
-      - name: OPA unit tests
-        id: opa_test
-        continue-on-error: true
-        run: opa test -v policies/
 
       - name: Install Conftest
         run: |
@@ -195,7 +247,6 @@ jobs:
         if: always()
         run: |
           FAIL=0
-          [[ "${{ steps.opa_test.outcome }}" == "success" ]]    || { echo "opa test failed"; FAIL=1; }
           [[ "${{ steps.tf_test.outcome }}" == "success" ]]      || { echo "terraform test failed"; FAIL=1; }
           [[ "${{ steps.detection_tests.outcome }}" == "success" ]] || { echo "detection-logic pattern tests failed"; FAIL=1; }
           [[ "${{ steps.policy_check.outcome }}" == "success" ]] || { echo "policy check (conftest) failed"; FAIL=1; }

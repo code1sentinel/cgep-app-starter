@@ -1,12 +1,14 @@
 # terraform/oidc-trust/variables.tf
 variable "aws_region" {
-  type    = string
-  default = "us-east-1"
+  type        = string
+  description = "AWS region for the remote-state bucket and the region scoping in the CI role's IAM policy. Must match the Layer 1 workload's region."
+  default     = "us-east-1"
 }
 
 variable "project_name" {
-  type    = string
-  default = "acme-health-intake"
+  type        = string
+  description = "Name prefix for the remote-state bucket and the grc-gate IAM role/policy. Matches the Layer 1 workload's prefix."
+  default     = "acme-health-intake"
 }
 
 variable "github_org" {

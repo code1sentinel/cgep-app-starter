@@ -1,12 +1,14 @@
 # terraform/evidence-vault/variables.tf
 variable "aws_region" {
-  type    = string
-  default = "us-east-1"
+  type        = string
+  description = "AWS region the evidence vault (S3 + KMS) is provisioned in. Keep this aligned with the Layer 1 workload's region so the CI pipeline uploads to a same-region bucket."
+  default     = "us-east-1"
 }
 
 variable "project_name" {
-  type    = string
-  default = "acme-health-intake"
+  type        = string
+  description = "Name prefix for the vault's bucket and KMS alias. Matches the Layer 1 workload's prefix so resources sort together in the console."
+  default     = "acme-health-intake"
 }
 
 variable "lock_mode" {
