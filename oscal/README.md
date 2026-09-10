@@ -14,12 +14,12 @@ One consequence: `trestle author profile-resolve` fails against `hipaa-minimum.j
 
 ## Verifying the evidence chain yourself
 
-Every `implemented-requirement` links to the same signed pipeline bundle (run `33357334981`, the most recent successful Layer 3 merge). Verify it independently:
+Every `implemented-requirement` links to the same signed pipeline bundle — run `34460022480`, the `grc-gate` job that applied the reviewed baseline (commit `92adbf8`). Verify it independently:
 
 ```bash
 export EVIDENCE_VAULT=acme-health-intake-grc-evidence-vault-2f2d7f0e
 export AWS_PROFILE=cgep-sandbox
-bash scripts/verify-evidence.sh 33357334981
+bash scripts/verify-evidence.sh 34460022480
 ```
 
 Expect `CHAIN INTACT` — SHA-256 match, `cosign verify-blob` against the public Sigstore log, and Object Lock retention all confirmed independently of anything this repo claims.
