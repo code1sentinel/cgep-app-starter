@@ -55,6 +55,27 @@ jobs:
           terraform plan -out=tfplan -input=false -no-color | tee plan.txt
           terraform show -json tfplan > plan.json
 
+      # --- Tests: IaC-level assertions + detection-logic pattern matching ---
+      # Plan-only, no resources created (see terraform/tests/gap_fixes.tftest.hcl
+      # for why -- a `command = apply` run here would mean minting real,
+      # separately-billed KMS CMKs just to run tests).
+
+      - name: Terraform test (gap fixes)
+        id: tf_test
+        continue-on-error: true
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform test
+
+      - name: Install pytest + boto3
+        run: pip install pytest boto3
+
+      - name: Detection-logic pattern tests
+        id: detection_tests
+        continue-on-error: true
+        env:
+          TF_WORKING_DIR: ${{ env.TF_WORKING_DIR }}
+        run: pytest scripts/tests/test_detection_patterns.py -v
+
       # --- Policy Check ----------------------------------------------
 
       - name: Install OPA
@@ -98,6 +119,8 @@ jobs:
         id: apply
         if: >
           github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.tf_test.outcome == 'success' &&
+          steps.detection_tests.outcome == 'success' &&
           steps.policy_check.outcome == 'success' &&
           steps.checkov.outcome == 'success' &&
           steps.gitleaks.outcome == 'success'
@@ -173,6 +196,8 @@ jobs:
         run: |
           FAIL=0
           [[ "${{ steps.opa_test.outcome }}" == "success" ]]    || { echo "opa test failed"; FAIL=1; }
+          [[ "${{ steps.tf_test.outcome }}" == "success" ]]      || { echo "terraform test failed"; FAIL=1; }
+          [[ "${{ steps.detection_tests.outcome }}" == "success" ]] || { echo "detection-logic pattern tests failed"; FAIL=1; }
           [[ "${{ steps.policy_check.outcome }}" == "success" ]] || { echo "policy check (conftest) failed"; FAIL=1; }
           [[ "${{ steps.checkov.outcome }}" == "success" ]]      || { echo "checkov failed"; FAIL=1; }
           [[ "${{ steps.gitleaks.outcome }}" == "success" ]]     || { echo "gitleaks failed"; FAIL=1; }

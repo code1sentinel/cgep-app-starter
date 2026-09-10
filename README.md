@@ -43,6 +43,16 @@ opa test -v policies/                              # unit tests, no AWS needed
 bash scripts/policy-gate.sh --workspace terraform   # live gate against a real plan (needs a saved tfplan + AWS creds)
 ```
 
+### 3b. Run the test suites (IaC assertions + detection-logic pattern matching)
+
+```bash
+cd terraform && terraform test                             # plan-only, no resources created; needs AWS creds
+pip install pytest boto3
+pytest scripts/tests/test_detection_patterns.py -v          # needs AWS creds + a deployed terraform/ workspace
+```
+
+Both run in CI on every push/PR and block `Apply` on failure, same as checkov/gitleaks/conftest.
+
 ### 4. Validate the OSCAL
 
 ```bash
