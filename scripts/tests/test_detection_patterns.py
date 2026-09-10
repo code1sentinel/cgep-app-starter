@@ -61,6 +61,14 @@ def _attr(tf_resources, resource_type, resource_name, attr):
     raise AssertionError(f"no {resource_type}.{resource_name} in state")
 
 
+# Placeholder account id (AWS's own documentation example value). The
+# monitoring.tf event patterns match only on source / detail-type /
+# eventName / requestParameters, never on account or userIdentity, so
+# this value is cosmetic to the assertions -- kept as a placeholder so
+# no real account id lands in version control.
+_ACCOUNT = "123456789012"
+
+
 def _cloudtrail_event(source, event_name, request_parameters):
     """Minimal but realistic 'AWS API Call via CloudTrail' event as delivered to EventBridge."""
     return {
@@ -68,7 +76,7 @@ def _cloudtrail_event(source, event_name, request_parameters):
         "id": "11111111-2222-3333-4444-555555555555",
         "detail-type": "AWS API Call via CloudTrail",
         "source": source,
-        "account": "738922881786",
+        "account": _ACCOUNT,
         "time": "2026-09-10T00:00:00Z",
         "region": "us-east-1",
         "resources": [],
@@ -79,7 +87,7 @@ def _cloudtrail_event(source, event_name, request_parameters):
             "eventName": event_name,
             "awsRegion": "us-east-1",
             "sourceIPAddress": "203.0.113.5",
-            "userIdentity": {"type": "IAMUser", "arn": "arn:aws:iam::738922881786:user/some-user"},
+            "userIdentity": {"type": "IAMUser", "arn": f"arn:aws:iam::{_ACCOUNT}:user/some-user"},
             "requestParameters": request_parameters,
             "responseElements": None,
         },
